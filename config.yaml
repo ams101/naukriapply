@@ -7,7 +7,7 @@ search:
   # Safety net so a run can't paginate forever if Naukri's "Next" control misbehaves.
   max_pages: 100
 
-# Fields filled ONLY when the apply form / recruiter questionnaire asks for them.
+# Answers used ONLY when the recruiter questionnaire asks. Any other question flags the job for review.
 apply_defaults:
   current_ctc_lpa: 27          # ₹27,00,000
   expected_ctc_lpa: 36         # ₹36,00,000
@@ -28,6 +28,11 @@ apply_defaults:
     - "0 - 15"
     - "less than 15"
     - "within 15"
+  # "Are you living in / ready to relocate to <city>?" -> this answer (typed, or the option starting with it).
+  relocate_answer: "Yes"
+  # "How many years of experience do you have (in X)?" -> this number, for ANY skill or domain named.
+  # For range options ("3-5", "5+") the range containing this number is picked.
+  years_of_experience: 5
 
 # Companies to skip entirely (no scoring, no applying).
 # Case-insensitive; a job is skipped if either name contains the other.

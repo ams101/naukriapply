@@ -43,8 +43,23 @@ def test_classify():
     assert classify_question("What is your notice period?") == "notice"
     assert classify_question("How soon can you join?") == "notice"
     assert classify_question("Why are you a good fit for this role?") == "other"
-    assert classify_question("Are you willing to relocate to Pune?") == "other"
-    assert classify_question("How many years of experience in B2B SaaS?") == "other"
+    assert classify_question("Are you willing to relocate to Pune?") == "relocate"
+    assert classify_question("Are you currently living in or ready to relocate to Pune ?") == "relocate"
+    assert classify_question("How many years of experience do you have in Digital Lending?") == "years_experience"
+    assert classify_question("How many years of experience in B2B SaaS?") == "years_experience"
+    assert classify_question("Total years of experience") == "years_experience"
+    assert classify_question("Do you have experience in B2B SaaS?") == "other"  # yes/no, not a count
+    assert classify_question("Describe your experience with roadmaps") == "other"
+
+
+def test_pick_years_option():
+    from naukri_autoapply.apply_flow import pick_years_option as p
+    assert p(["0-2 years", "3-5 years", "6-10 years"], 5) == 1
+    assert p(["1", "3", "5", "7"], 5) == 2
+    assert p(["Less than 3", "3 to 4", "5+"], 5) == 2
+    assert p(["More than 5", "More than 4"], 5) == 1
+    assert p(["Yes", "No"], 5) is None
+    assert p(["0-2", "6-10"], 5) is None
 
 
 def test_ctc_answer():

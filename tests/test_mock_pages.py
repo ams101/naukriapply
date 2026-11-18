@@ -238,14 +238,35 @@ def real_questionnaire(page, questions):
     page.evaluate("q => { window.QUESTIONS = q; }", questions)
 
 
-def test_real_questionnaire_relocation_question_is_flagged(page):
+def test_real_questionnaire_bajaj_questions_are_answered(page):
+    # The exact questions from the saved Bajaj Finserv questionnaire.
     real_questionnaire(page, [
         {"text": "Are you currently living in or ready to relocate to Pune ?"},
         {"text": "How many years of experience do you have in Digital Lending?"},
+        {"text": "How many years of experience do you have in FLDG?"},
     ])
-    with pytest.raises(ApplyAborted, match="free-text question: 'Are you currently living in or ready to relocate"):
-        run_apply(page, DEFAULTS, timeout_s=20)
-    assert page.evaluate("window.answers") == []
+    res = run_apply(page, DEFAULTS, timeout_s=30)
+    assert page.evaluate("window.answers") == ["Yes", "5", "5"]
+    assert "relocate=Yes" in res.detail and "years_experience=5" in res.detail
+
+
+def test_real_questionnaire_option_answers(page):
+    real_questionnaire(page, [
+        {"text": "Are you willing to relocate to Pune?", "options": ["Yes", "No"]},
+        {"text": "How many years of experience do you have in fintech?", "options": ["0-2", "3-5", "6+"]},
+    ])
+    run_apply(page, DEFAULTS, timeout_s=30)
+    assert page.evaluate("window.answers") == ["Yes", "3-5"]
+
+
+def test_real_questionnaire_other_question_still_flagged(page):
+    real_questionnaire(page, [
+        {"text": "Are you currently living in or ready to relocate to Pune ?"},
+        {"text": "Why do you want to join Bajaj Finserv?"},
+    ])
+    with pytest.raises(ApplyAborted, match="free-text question: 'Why do you want"):
+        run_apply(page, DEFAULTS, timeout_s=30)
+    assert page.evaluate("window.answers") == ["Yes"]
     assert page.locator("#already-applied").count() == 0
 
 
@@ -266,12 +287,12 @@ def test_real_questionnaire_notice_as_text(page):
     assert page.evaluate("window.answers") == ["Immediately available / currently serving notice"]
 
 
-def test_real_questionnaire_later_free_text_question_stops_before_submit(page):
+def test_real_questionnaire_later_unknown_question_stops_before_submit(page):
     real_questionnaire(page, [
         {"text": "What is your current CTC?"},
-        {"text": "How many years of experience do you have in FLDG?"},
+        {"text": "Please share a link to your portfolio"},
     ])
-    with pytest.raises(ApplyAborted, match="FLDG"):
+    with pytest.raises(ApplyAborted, match="portfolio"):
         run_apply(page, DEFAULTS, timeout_s=20)
     assert page.evaluate("window.answers") == ["2700000"]
     assert page.locator("#already-applied").count() == 0

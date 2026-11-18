@@ -38,6 +38,12 @@ EXPECTED_CTC_RE = re.compile(r"expect", re.I)
 CTC_WORD_RE = re.compile(r"ctc|salary|compensation|package|lpa|lakh|pay", re.I)
 NOTICE_RE = re.compile(r"notice\s*period|how soon can you join|joining (time|date)|when can you join|"
                        r"earliest (you can )?join|serving notice", re.I)
+RELOCATE_RE = re.compile(r"relocat|currently (living|based|residing|staying) in|willing to (move|shift)|"
+                         r"open to (move|moving|shift)", re.I)
+# Only "how many years" questions; a yes/no "do you have experience in X?" stays unrecognised.
+YEARS_EXP_RE = re.compile(r"(how many|number of|no\.? of|total)\s+(years|yrs)|"
+                          r"(years|yrs)\s+of\s+(relevant\s+|total\s+|work\s+)?(experience|exp)\b|"
+                          r"experience\s*\((in )?(years|yrs)\)", re.I)
 LAKH_RE = re.compile(r"lakh|lac\b|lacs|lpa|\bl\b", re.I)
 RUPEE_RE = re.compile(r"rupee|inr|₹|in rs|absolute|annum", re.I)
 
@@ -63,7 +69,7 @@ class ApplyResult:
 
 @dataclass
 class Question:
-    kind: str  # current_ctc | expected_ctc | notice | other
+    kind: str  # current_ctc | expected_ctc | notice | relocate | years_experience | other
     text: str
 
 
@@ -71,11 +77,39 @@ def classify_question(text: str) -> str:
     t = " ".join(text.split())
     if NOTICE_RE.search(t):
         return "notice"
+    if RELOCATE_RE.search(t):
+        return "relocate"
+    if YEARS_EXP_RE.search(t) and not CTC_WORD_RE.search(t):
+        return "years_experience"
     if EXPECTED_CTC_RE.search(t) and CTC_WORD_RE.search(t):
         return "expected_ctc"
     if CURRENT_CTC_RE.search(t):
         return "current_ctc"
     return "other"
+
+
+def pick_years_option(labels: list[str], years: float) -> int | None:
+    """Index of the option covering `years`, e.g. "5", "3-5", "5 to 8 years", "5+", "More than 4"."""
+    for i, label in enumerate(labels):
+        t = label.lower()
+        nums = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", t)]
+        if len(nums) >= 2:
+            ok = nums[0] <= years <= nums[1]
+        elif len(nums) == 1:
+            n = nums[0]
+            if re.search(r"\+|or more|and above|or above", t):
+                ok = years >= n
+            elif re.search(r"more than|above|over|greater than", t):
+                ok = years > n
+            elif re.search(r"less than|under|below|fewer than", t):
+                ok = years < n
+            else:
+                ok = years == n
+        else:
+            ok = False
+        if ok:
+            return i
+    return None
 
 
 def ctc_answer(question: str, lpa: float, unit_when_unspecified: str) -> str:
@@ -192,6 +226,13 @@ def _text_input(chat: Locator) -> Locator | None:
     return None
 
 
+def _click_option(loc: Locator) -> None:
+    try:
+        loc.click(timeout=3000)
+    except Exception:  # styled radios often hide the <input>; force the click
+        loc.click(force=True, timeout=3000)
+
+
 def _type_into(box: Locator, value: str) -> None:
     """Type key by key: Naukri's Save button (div.send.disabled) enables on key events,
     which a plain fill() on the contenteditable div may not trigger."""
@@ -232,10 +273,7 @@ def _answer(page: Page, chat: Locator, q: Question, d: ApplyDefaults) -> str:
         if opts:
             for loc, label in opts:
                 if any(k.lower() in label.lower() for k in d.notice_period_option_keywords):
-                    try:
-                        loc.click(timeout=3000)
-                    except Exception:  # styled radios often hide the <input>; force the click
-                        loc.click(force=True, timeout=3000)
+                    _click_option(loc)
                     _click_save(page, chat)
                     return label
             labels = ", ".join(l for _, l in opts if l)
@@ -245,6 +283,39 @@ def _answer(page: Page, chat: Locator, q: Question, d: ApplyDefaults) -> str:
             _click_save(page, chat)
             return d.notice_period_text
         raise BlockedPage("Notice-period question with no recognisable input")
+
+    if q.kind == "relocate":
+        if opts:
+            for loc, label in opts:
+                if label.strip().lower().startswith(d.relocate_answer.strip().lower()):
+                    _click_option(loc)
+                    _click_save(page, chat)
+                    return label
+            labels = ", ".join(l for _, l in opts if l)
+            raise ApplyAborted(f"Relocation options have no '{d.relocate_answer}': [{labels}]")
+        if text_box:
+            _type_into(text_box, d.relocate_answer)
+            _click_save(page, chat)
+            return d.relocate_answer
+        raise BlockedPage("Relocation question with no recognisable input")
+
+    if q.kind == "years_experience":
+        years = d.years_of_experience
+        if opts:
+            idx = pick_years_option([l for _, l in opts], years)
+            if idx is None:
+                labels = ", ".join(l for _, l in opts if l)
+                raise ApplyAborted(f"Experience options don't cover {years:g} years: [{labels}]")
+            loc, label = opts[idx]
+            _click_option(loc)
+            _click_save(page, chat)
+            return label
+        if text_box:
+            value = f"{years:g}"
+            _type_into(text_box, value)
+            _click_save(page, chat)
+            return value
+        raise BlockedPage("Experience question with no recognisable input")
 
     lpa = d.current_ctc_lpa if q.kind == "current_ctc" else d.expected_ctc_lpa
     if opts and not text_box:

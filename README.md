@@ -70,9 +70,11 @@ run `python main.py login` again.
    - 85 and above: try to apply
 3. **Apply** (85 and above):
    - One-click apply: submitted, logged as `applied`.
-   - Recruiter questionnaire: questions about **current CTC, expected CTC or notice period** are
-     answered from `config.yaml`. **Any other question** (free text such as "why are you a fit", or
-     anything else) aborts *before* submitting and logs `flagged_review` with the question text.
+   - Recruiter questionnaire: these questions are answered from `config.yaml`:
+     **current CTC, expected CTC, notice period, "ready to relocate to X?"** (Yes) and
+     **"how many years of experience (in X)?"** (5). **Any other question** (free text such as
+     "why are you a fit", a yes/no "do you have experience in X?", or anything else) aborts
+     *before* submitting and logs `flagged_review` with the question text.
    - "Apply on company site": `flagged_review`, because the external form can't be checked.
    - The job page already shows "Applied": `skipped_already_applied`.
 4. **Errors.** A timeout, CAPTCHA, unexpected page or missing element logs `error_skipped`, with the
@@ -98,6 +100,9 @@ new jobs.
   it types `2700000`. If it says neither, `apply_defaults.ctc_unit_when_unspecified` decides. If the
   CTC question offers ranges to choose from instead of a text box, the job is flagged for review
   rather than guessing.
+- **Years of experience = 5 for any skill.** "How many years in Digital Lending / FLDG / X?" is
+  always answered with `years_of_experience`, whatever X is. If the options are ranges, the one
+  containing 5 is picked ("3-5", "5+"). If none contains 5, the job is flagged.
 - **Notice period.** For multiple-choice questions, the first option containing one of
   `notice_period_option_keywords` is picked. If none matches, the job is flagged.
 - **Selectors are unverified.** This was built without access to a logged-in Naukri session.

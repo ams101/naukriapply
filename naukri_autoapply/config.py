@@ -14,6 +14,8 @@ class ApplyDefaults:
     ctc_unit_when_unspecified: str = "rupees"
     notice_period_text: str = "Immediately available / currently serving notice"
     notice_period_option_keywords: list[str] = field(default_factory=lambda: ["immediate", "serving notice"])
+    relocate_answer: str = "Yes"
+    years_of_experience: float = 5
 
 
 @dataclass
@@ -61,6 +63,8 @@ def load_config(path: str | Path = "config.yaml") -> Config:
         ctc_unit_when_unspecified=str(ad.get("ctc_unit_when_unspecified", "rupees")).lower(),
         notice_period_text=str(ad.get("notice_period_text", ApplyDefaults.notice_period_text)),
         notice_period_option_keywords=[str(k) for k in ad.get("notice_period_option_keywords", ["immediate"])],
+        relocate_answer=str(ad.get("relocate_answer", "Yes")),
+        years_of_experience=float(ad.get("years_of_experience", 5)),
     )
 
     def p(key: str, default: str) -> Path:
