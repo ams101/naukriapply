@@ -74,8 +74,22 @@ def _profile_sections_text(page: Page) -> str:
     return ""
 
 
-def get_resume_text(page: Page, fallbacks: list[Path]) -> tuple[str, str]:
-    """Returns (text, source_description). Raises RuntimeError if nothing usable is found."""
+def _from_files(paths: list[Path]) -> tuple[str, str] | None:
+    for path in paths:
+        if not path.exists():
+            continue
+        try:
+            text = parse_file(path)
+        except Exception as e:
+            print(f"[resume] Could not parse {path.name}: {e}")
+            continue
+        if len(text) >= MIN_RESUME_CHARS:
+            return text, f"local file {path.name}"
+        print(f"[resume] {path.name} yielded only {len(text)} chars (scanned PDF?); skipping.")
+    return None
+
+
+def _from_profile(page: Page) -> tuple[str, str] | None:
     try:
         page.goto(PROFILE_URL, wait_until="domcontentloaded")
         page.wait_for_timeout(3000)
@@ -90,18 +104,20 @@ def get_resume_text(page: Page, fallbacks: list[Path]) -> tuple[str, str]:
             return text, "Naukri profile page text"
     except Exception as e:
         print(f"[resume] Profile extraction failed: {e.__class__.__name__}: {str(e)[:160]}")
+    return None
 
-    for path in fallbacks:
-        if path.exists():
-            try:
-                text = parse_file(path)
-            except Exception as e:
-                print(f"[resume] Could not parse {path.name}: {e}")
-                continue
-            if len(text) >= MIN_RESUME_CHARS:
-                return text, f"local file {path.name}"
-            print(f"[resume] {path.name} yielded only {len(text)} chars; skipping.")
+
+def get_resume_text(page: Page, files: list[Path], file_first: bool = True) -> tuple[str, str]:
+    """Returns (text, source_description). Used only for scoring; Naukri itself sends the
+    CV attached to your profile when you apply. Raises RuntimeError if nothing usable is found."""
+    sources = [lambda: _from_files(files), lambda: _from_profile(page)]
+    if not file_first:
+        sources.reverse()
+    for source in sources:
+        result = source()
+        if result:
+            return result
     raise RuntimeError(
-        "Could not get resume text from the Naukri profile or local files. "
+        "Could not get resume text from local files or the Naukri profile. "
         "Place a text-based resume.pdf or resume.docx in the project folder."
     )

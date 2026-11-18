@@ -87,3 +87,18 @@ def test_logbook_dedup_and_cap(tmp_path):
     assert not fresh.is_seen("2")  # cap-reached jobs are retried next day
     assert not fresh.is_seen("4")  # dry-run rows never block a live run
     assert fresh.applied_today == 1
+
+
+def test_resume_file_first_skips_profile(tmp_path):
+    from pathlib import Path
+    from naukri_autoapply.resume import get_resume_text
+
+    f = tmp_path / "resume.txt"
+    f.write_text("Product manager. Experience and skills. " * 40)
+
+    class NoBrowser:  # any profile access would fail the test
+        def __getattr__(self, name):
+            raise AssertionError("profile page should not be opened when resume file works")
+
+    text, source = get_resume_text(NoBrowser(), [Path(tmp_path / "resume.pdf"), f], file_first=True)
+    assert source == "local file resume.txt" and len(text) > 600

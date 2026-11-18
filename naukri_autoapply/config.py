@@ -39,6 +39,7 @@ class Config:
     log_csv: Path
     screenshots_dir: Path
     resume_fallbacks: list[Path]
+    resume_file_first: bool
     reprocess_actions: set[str]
 
 
@@ -89,6 +90,7 @@ def load_config(path: str | Path = "config.yaml") -> Config:
         auth_state=p("auth_state", "auth.json"),
         log_csv=p("log_csv", "applied_log.csv"),
         screenshots_dir=p("screenshots_dir", "screenshots"),
+        resume_file_first=str(paths.get("resume_source", "file_first")).lower() != "profile_first",
         resume_fallbacks=[(base / f).resolve() for f in paths.get("resume_fallbacks", ["resume.pdf", "resume.docx"])],
         reprocess_actions=set(dedup.get("reprocess_actions", ["skipped_daily_cap_reached"])),
     )

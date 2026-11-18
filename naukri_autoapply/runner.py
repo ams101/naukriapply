@@ -108,7 +108,7 @@ class Runner:
 
             detail_page = ctx.new_page()
             try:
-                resume_text, source = get_resume_text(detail_page, cfg.resume_fallbacks)
+                resume_text, source = get_resume_text(detail_page, cfg.resume_fallbacks, cfg.resume_file_first)
             except RuntimeError as e:
                 browser.close()
                 raise SystemExit(str(e))

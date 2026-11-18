@@ -30,8 +30,10 @@ or permanently (takes effect in new terminals):
 setx ANTHROPIC_API_KEY "sk-ant-..."
 ```
 
-Optional: put a text-based `resume.pdf` or `resume.docx` in this folder. It's only used if the tool
-can't read your resume from your Naukri profile.
+Put your CV in this folder as `resume.pdf` (or `resume.docx`). It's used **only to score jobs**.
+Naukri itself sends the CV attached to your Naukri profile when you apply, so keep the two in sync.
+If no file is there, the tool tries to read your resume from your Naukri profile instead
+(`paths.resume_source` in `config.yaml` switches the order).
 
 ## Use
 

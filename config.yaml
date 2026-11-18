@@ -62,7 +62,10 @@ paths:
   auth_state: "auth.json"
   log_csv: "applied_log.csv"
   screenshots_dir: "screenshots"
-  # Fallback resume files, checked in this order if profile extraction fails.
+  # Your CV is used ONLY to score jobs (Naukri sends the CV on your profile when applying).
+  # file_first: read these files first, Naukri profile only if none is usable.
+  # profile_first: try the Naukri profile first, these files as fallback.
+  resume_source: "file_first"
   resume_fallbacks:
     - "resume.pdf"
     - "resume.docx"
