@@ -1,0 +1,72 @@
+# Naukri Auto-Apply configuration.
+# Edit values here; no code changes needed.
+
+search:
+  # Product Manager roles, posted in the last 7 days, nationwide (no location filter).
+  url: "https://www.naukri.com/product-manager-jobs?k=product%20manager&jobAge=7"
+  # Safety net so a run can't paginate forever if Naukri's "Next" control misbehaves.
+  max_pages: 100
+
+# Fields filled ONLY when the apply form / recruiter questionnaire asks for them.
+apply_defaults:
+  current_ctc_lpa: 27          # ₹27,00,000
+  expected_ctc_lpa: 36         # ₹36,00,000
+  # How to type CTC when the question doesn't say "lakhs"/"LPA" or "rupees"/"INR":
+  #   "rupees" -> 2700000   |   "lakhs" -> 27
+  ctc_unit_when_unspecified: "rupees"
+  # Typed when the notice-period question is a text box.
+  notice_period_text: "Immediately available / currently serving notice"
+  # When the notice-period question offers choices (radio buttons / chips), the first
+  # option whose label contains one of these phrases (case-insensitive) is picked.
+  # If none match, the job is flagged for review instead of guessing.
+  notice_period_option_keywords:
+    - "immediate"
+    - "serving notice"
+    - "currently serving"
+    - "15 days or less"
+    - "0-15"
+    - "0 - 15"
+    - "less than 15"
+    - "within 15"
+
+# Companies to skip entirely (no scoring, no applying).
+# Case-insensitive; a job is skipped if either name contains the other.
+blocklist:
+  - "Shaadi.com"
+  - "People Group"
+
+scoring:
+  model: "claude-opus-5-5"
+  effort: "medium"            # low | medium | high | xhigh | max
+  apply_threshold: 85         # score >= this -> try to apply
+  review_threshold: 70        # score in [review_threshold, apply_threshold) -> flagged_review
+  max_jd_chars: 30000         # JD text longer than this is cut (Naukri JDs are far shorter)
+
+pacing:
+  seconds_between_applies: 40
+  daily_apply_cap: 40
+
+browser:
+  # "chrome" uses your installed Google Chrome; "msedge" uses Edge;
+  # "" (empty) uses Playwright's bundled Chromium (run `playwright install chromium` first).
+  channel: "chrome"
+  slow_mo_ms: 150             # small delay between browser actions, closer to human pace
+  page_timeout_ms: 30000
+
+paths:
+  auth_state: "auth.json"
+  log_csv: "applied_log.csv"
+  screenshots_dir: "screenshots"
+  # Fallback resume files, checked in this order if profile extraction fails.
+  resume_fallbacks:
+    - "resume.pdf"
+    - "resume.docx"
+
+dedup:
+  # Actions that do NOT mark a job as "seen", so a later run may consider it again.
+  # - skipped_daily_cap_reached: the job qualified but the cap stopped it; retry tomorrow.
+  # Dry-run rows (action starting with "would_") never count as seen, so a dry run
+  # doesn't stop the first live run from processing those jobs.
+  # Add "error_skipped" here if you want failed jobs retried on the next run.
+  reprocess_actions:
+    - "skipped_daily_cap_reached"

@@ -1,0 +1,11 @@
+# Session cookies - never commit
+auth.json
+# Personal data / outputs
+applied_log.csv
+resume.pdf
+resume.docx
+screenshots/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
