@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Naukri Auto-Apply</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Naukri Auto-Apply</h1>
+    <span id="state" class="pill">Idle</span>
+  </header>
+
+  <section id="setup" class="card" hidden>
+    <h2>Finish setup</h2>
+    <ul id="setup-list"></ul>
+  </section>
+
+  <section class="card">
+    <h2>Run</h2>
+    <p class="muted">Make sure you're logged into naukri.com in this Chrome. A run opens Naukri in its own window; leave both windows open until it finishes.</p>
+    <div class="buttons">
+      <button id="dry" class="secondary">Dry run</button>
+      <button id="live" class="primary">Start applying</button>
+      <button id="stop" class="danger" disabled>Stop</button>
+    </div>
+    <p id="status" class="status">Ready.</p>
+    <div id="counts" class="counts"></div>
+    <p class="muted" id="today"></p>
+  </section>
+
+  <section class="card">
+    <div class="row-between">
+      <h2>Log</h2>
+      <div class="buttons small">
+        <button id="csv" class="secondary">Download CSV</button>
+        <button id="clear-dry" class="secondary">Clear dry-run rows</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When</th><th>Job</th><th>Company</th><th>Score</th><th>Action</th><th>Reason</th></tr></thead>
+        <tbody id="log"></tbody>
+      </table>
+    </div>
+    <p class="muted" id="log-note"></p>
+  </section>
+
+  <section class="card">
+    <h2>Settings</h2>
+    <form id="settings">
+      <fieldset>
+        <legend>Essentials</legend>
+        <label>Anthropic API key <input name="apiKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
+        <label>Your CV (PDF, used only for scoring; Naukri sends its own copy when applying)
+          <input id="cv" type="file" accept="application/pdf">
+        </label>
+        <p id="cv-status" class="muted"></p>
+      </fieldset>
+      <fieldset>
+        <legend>Answers for recruiter questions</legend>
+        <div class="grid">
+          <label>Current CTC (LPA) <input name="currentCtcLpa" type="number" step="0.1"></label>
+          <label>Expected CTC (LPA) <input name="expectedCtcLpa" type="number" step="0.1"></label>
+          <label>CTC unit when the question doesn't say
+            <select name="ctcUnit"><option value="rupees">Rupees (2700000)</option><option value="lakhs">Lakhs (27)</option></select>
+          </label>
+          <label>Relocate? <input name="relocateAnswer"></label>
+          <label>Years of experience (any skill asked) <input name="yearsExperience" type="number" step="0.5"></label>
+        </div>
+        <label>Notice period (typed answer) <input name="noticeText"></label>
+        <label>Notice-period options to pick (one per line, first match wins) <textarea name="noticeKeywords" rows="4"></textarea></label>
+        <p class="muted">Any other question (free text, "why are you a fit", portfolio links…) stops the apply before submitting and flags the job for review.</p>
+      </fieldset>
+      <fieldset>
+        <legend>Rules</legend>
+        <label>Blocked companies (one per line) <textarea name="blocklist" rows="3"></textarea></label>
+        <div class="grid">
+          <label>Apply at score ≥ <input name="applyThreshold" type="number"></label>
+          <label>Review at score ≥ <input name="reviewThreshold" type="number"></label>
+          <label>Seconds between applications <input name="secondsBetweenApplies" type="number"></label>
+          <label>Daily application cap <input name="dailyCap" type="number"></label>
+        </div>
+        <label class="check"><input name="retryErrors" type="checkbox"> Retry jobs that errored on the next run</label>
+      </fieldset>
+      <details>
+        <summary>Advanced</summary>
+        <label>Search URL <input name="searchUrl"></label>
+        <div class="grid">
+          <label>Max result pages <input name="maxPages" type="number"></label>
+          <label>Model <input name="model"></label>
+          <label>Effort
+            <select name="effort"><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option></select>
+          </label>
+        </div>
+      </details>
+      <div class="buttons">
+        <button type="submit" class="primary">Save settings</button>
+        <span id="saved" class="muted"></span>
+      </div>
+    </form>
+  </section>
+</main>
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>
