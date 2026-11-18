@@ -1,133 +1,97 @@
 # Naukri Auto-Apply (Product Manager roles)
 
-Searches Naukri for Product Manager jobs posted in the last 7 days. It scores each new job against
-your resume with Claude, applies to strong matches, and flags unclear ones for you to review.
-Everything goes into one CSV file, `applied_log.csv`.
+A Chrome extension that searches Naukri for Product Manager jobs posted in the last 7 days. It
+scores each new job against your CV with Claude, applies to strong matches, and flags unclear ones
+for you to review. Nothing to install besides Chrome; it uses the Naukri login you already have.
 
-It runs locally in a **visible** Chrome window. You log in yourself once, and the tool never sees or
-types your password.
+## One-time setup
 
-## Setup (Windows, PowerShell)
+1. **Get the extension folder.** Unzip `naukri-auto-apply-extension.zip` somewhere permanent, e.g.
+   `Documents\naukri-auto-apply`. Chrome loads it from there, so don't delete or move it later.
+2. **Load it into Chrome.**
+   - Open `chrome://extensions`.
+   - Turn on **Developer mode** (top right).
+   - Click **Load unpacked** and select the unzipped folder: the one containing `manifest.json`.
+   - Click the puzzle-piece icon in the toolbar and pin **Naukri Auto-Apply**.
+3. **Open it.** Click its toolbar icon. The dashboard opens in a tab.
+4. **Settings → Essentials.**
+   - Paste your Anthropic API key (from console.anthropic.com) and click **Save settings**.
+   - Upload your CV as a PDF. It's used **only to score jobs**: Naukri sends the CV on your
+     Naukri profile when you apply, so keep the two in sync.
+5. **Check the other settings** (CTC, notice period, relocate, years of experience, blocklist,
+   thresholds, pacing, daily cap) and save. The defaults match your requirements.
+6. Make sure you're **logged into naukri.com** in this Chrome.
 
-```powershell
-cd path\to\naukriapply
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-# Only needed if you don't have Google Chrome installed (or set browser.channel: "" in config.yaml):
-playwright install chromium
-```
+## Every time
 
-Set your Anthropic API key, either for this session only:
+Click the toolbar icon, then:
 
-```powershell
-$env:ANTHROPIC_API_KEY = "sk-ant-..."
-```
+- **Dry run** does everything except clicking Apply. It logs what it *would* do (`would_apply`,
+  `would_flag`, ...). Do this first.
+- **Start applying** runs for real.
+- **Stop** ends the run after the current job.
 
-or permanently (takes effect in new terminals):
-
-```powershell
-setx ANTHROPIC_API_KEY "sk-ant-..."
-```
-
-Put your CV in this folder as `resume.pdf` (or `resume.docx`). It's used **only to score jobs**.
-Naukri itself sends the CV attached to your Naukri profile when you apply, so keep the two in sync.
-If no file is there, the tool tries to read your resume from your Naukri profile instead
-(`paths.resume_source` in `config.yaml` switches the order).
-
-## Use
-
-**1. Log in once.** A browser opens. Log in normally (OTP etc.), then press Enter in the terminal.
-The session is saved to `auth.json`.
-
-```powershell
-python main.py login
-```
-
-**2. Dry run first.** This searches, scrapes and scores exactly like a live run, and logs what it
-*would* do (`would_apply`, `would_flag`, `would_skip_low_score`, ...), but never clicks Apply.
-
-```powershell
-python main.py run --dry-run
-```
-
-**3. Live.**
-
-```powershell
-python main.py run
-```
-
-Keep the browser window open while it runs. Press Ctrl+C in the terminal to stop early; the CSV is
-written row by row, so nothing is lost. If the session has expired, the run stops and tells you to
-run `python main.py login` again.
+A run opens Naukri in its own window. Leave both that window and the dashboard tab open until the
+dashboard says it's finished. **Download CSV** exports the full log as `applied_log.csv`.
 
 ## What it does per job
 
-1. **Blocklist.** If the company name matches `blocklist` in `config.yaml`, the job is logged as
+1. **Blocklist.** If the company name matches the blocklist, the job is logged as
    `skipped_blocklist` without scoring. The match ignores case and punctuation and works on
    substrings.
-2. **Score** (0–100, plus a short reason). Claude compares your resume with the job description.
+2. **Score** (0–100, plus a short reason). Claude compares your CV with the job description.
    - below 70: `skipped_low_score`
    - 70–84: `flagged_review`
    - 85 and above: try to apply
 3. **Apply** (85 and above):
    - One-click apply: submitted, logged as `applied`.
-   - Recruiter questionnaire: these questions are answered from `config.yaml`:
-     **current CTC, expected CTC, notice period, "ready to relocate to X?"** (Yes) and
-     **"how many years of experience (in X)?"** (5). **Any other question** (free text such as
-     "why are you a fit", a yes/no "do you have experience in X?", or anything else) aborts
-     *before* submitting and logs `flagged_review` with the question text.
-   - "Apply on company site": `flagged_review`, because the external form can't be checked.
-   - The job page already shows "Applied": `skipped_already_applied`.
-4. **Errors.** A timeout, CAPTCHA, unexpected page or missing element logs `error_skipped`, with the
-   error, a screenshot path in `screenshots/` and the page URL. The run then moves to the next job.
+   - Recruiter questions about **current CTC, expected CTC, notice period, "ready to relocate?"**
+     (Yes) and **"how many years of experience (in X)?"** (5) are answered from Settings.
+   - **Any other question** (free text such as "why do you want to join", a portfolio link, a
+     yes/no "do you have experience in X?") stops the apply *before* submitting. The job is logged
+     as `flagged_review` with the question text.
+   - "Apply on company site": `flagged_review`. The page already shows "Applied":
+     `skipped_already_applied`.
+4. **Errors.** A timeout, CAPTCHA or unexpected page logs `error_skipped` with the error and the
+   page URL, and the run moves on to the next job.
 
-**Pacing and cap.** Submitted applications are spaced 40 seconds apart. Once 40 have been submitted
-in a calendar day (counted from the CSV, across runs), the next qualifying job is logged as
-`skipped_daily_cap_reached` and the run exits. A run also ends when the search results have no more
-new jobs.
+**Pacing and cap.** Submitted applications are spaced 40 seconds apart. After 40 in a calendar day,
+the next qualifying job is logged as `skipped_daily_cap_reached` and the run ends. A run also ends
+when there are no new jobs left in the results.
 
 ## Things to know
 
-- **One-click jobs submit on the Apply click.** On Naukri, clicking Apply often *is* the submission,
-  so there is no form to inspect beforehand. The free-text check applies to the recruiter
-  questionnaire, where questions appear one at a time before anything is submitted. For the same
-  reason, a dry run can't see questionnaire questions: its `would_apply` rows mean "score 85+ and an
-  Apply button is present".
-- **Dedup.** A job ID logged as `applied`, `flagged_review`, `skipped_*` or `error_skipped` is never
-  processed again. There are two exceptions. `skipped_daily_cap_reached` jobs are reconsidered next
-  time, because they qualified and only the cap stopped them. Dry-run (`would_*`) rows never count,
-  so your first live run isn't blocked by the dry run. Change this under `dedup.reprocess_actions`.
-- **CTC format.** If a question says "lakhs"/"LPA", the tool types `27`. If it says "INR"/"rupees",
-  it types `2700000`. If it says neither, `apply_defaults.ctc_unit_when_unspecified` decides. If the
-  CTC question offers ranges to choose from instead of a text box, the job is flagged for review
-  rather than guessing.
-- **Years of experience = 5 for any skill.** "How many years in Digital Lending / FLDG / X?" is
-  always answered with `years_of_experience`, whatever X is. If the options are ranges, the one
-  containing 5 is picked ("3-5", "5+"). If none contains 5, the job is flagged.
-- **Notice period.** For multiple-choice questions, the first option containing one of
-  `notice_period_option_keywords` is picked. If none matches, the job is flagged.
-- **Selectors are unverified.** This was built without access to a logged-in Naukri session.
-  Locators lean on stable hooks: `job-listings-…` links, button/role names and visible text. Class
-  names are only fallbacks. If something breaks, the `error_skipped` row has the screenshot and URL.
-  Selectors live in `naukri_autoapply/search.py` (results and job pages) and
-  `naukri_autoapply/apply_flow.py` (Apply button and questionnaire).
+- **Cost.** Each job scored is one Claude call. A rough guide is a few US cents per job; your CV is
+  cached between calls. The first run can cover hundreds or thousands of listings from the last
+  7 days, so for the first dry run consider setting **Advanced → Max result pages** to 5 (about
+  100 jobs) to see how it does. Later runs only score jobs they haven't seen.
+- **Dedup.** A job logged as `applied`, `flagged_review`, `skipped_*` or `error_skipped` is never
+  processed again. There are two exceptions. Dry-run (`would_*`) rows don't count, so your first
+  live run isn't blocked by the dry run. `skipped_daily_cap_reached` jobs are reconsidered next
+  day. Tick "Retry jobs that errored" to retry `error_skipped` jobs as well.
+- **Dry run can't see recruiter questions.** On Naukri, clicking Apply often *is* the submission,
+  so a dry run never clicks it. `would_apply` means "score 85+ and an Apply button is there".
+- **Years of experience = 5 for any skill asked**, including skills not on your CV.
+- **Your data stays in this Chrome.** The log, settings, API key and CV are kept in the
+  extension's local storage. Only the CV and job description are sent to the Claude API for scoring.
+- **Selectors** were checked against real saved Naukri pages (search results, Apply / company site /
+  Applied job pages, and the recruiter questionnaire). Naukri can change its pages. If you start
+  seeing `error_skipped` rows, send the rows plus a saved copy of the page and the selectors in
+  `extension/naukri.js` can be updated.
 
-## Files
+## Repository layout
 
-| File | Purpose |
+| Path | What |
 |---|---|
-| `config.yaml` | CTC and notice defaults, blocklist, thresholds, pacing, model |
-| `auth.json` | saved Naukri session (git-ignored, keep it private) |
-| `applied_log.csv` | the log: `date, time, job_id, title, company, location, score, action, reason, job_url` |
-| `screenshots/` | screenshots of pages that errored |
+| `extension/` | The Chrome extension: `naukri.js` (code that runs on Naukri pages), `runner.js` (run logic), `scorer.js` (Claude API), `store.js` (settings and log), `dashboard.*` (UI) |
+| `naukri_autoapply/`, `main.py`, `config.yaml` | The earlier Python + Playwright version, same behaviour. Not needed for the extension. |
+| `tests/` | Tests for both versions. They use trimmed real Naukri pages in `tests/fixtures/`, and the extension tests load it into Chrome end to end with Naukri and the Claude API simulated. |
 
-## Tests
+Run the tests (needs Python and Playwright):
 
-```powershell
-pip install pytest
+```bash
+pip install -r requirements.txt pytest
+```
+```bash
 python -m pytest tests
 ```
-
-`tests/test_mock_pages.py` runs the scraper and the apply flow against small mock pages built to
-look like Naukri's. These tests check the logic, not that the selectors match the live site.
