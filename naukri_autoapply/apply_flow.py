@@ -167,8 +167,13 @@ def _options(chat: Locator) -> list[tuple[Locator, str]]:
         for i in range(min(chips.count(), 20)):
             c = chips.nth(i)
             try:
-                if c.is_visible():
-                    out.append((c, c.inner_text().strip()))
+                # Skip anything inside the message history: Naukri wraps its logo in a
+                # div.chipMsg inside li.chatbot_ListItem, which isn't an answer option.
+                if c.evaluate("e => !!e.closest('li, ul')"):
+                    continue
+                label = c.inner_text().strip()
+                if label and c.is_visible():
+                    out.append((c, label))
             except Exception:
                 continue
     return out
@@ -187,15 +192,25 @@ def _text_input(chat: Locator) -> Locator | None:
     return None
 
 
+def _type_into(box: Locator, value: str) -> None:
+    """Type key by key: Naukri's Save button (div.send.disabled) enables on key events,
+    which a plain fill() on the contenteditable div may not trigger."""
+    box.click()
+    box.fill("")
+    box.press_sequentially(value, delay=40)
+
+
 def _click_save(page: Page, chat: Locator) -> None:
     btn = chat.get_by_role("button", name=SAVE_BTN_RE)
     if btn.count():
         btn.last.click()
         return
-    btn = chat.locator("[class*='sendMsg' i], [class*='send' i], [class*='save' i]")
-    if btn.count():
-        btn.last.click()
-        return
+    # Real Naukri questionnaire: <div class="sendMsg" tabindex="0">Save</div>
+    for sel in [".sendMsg", "[class*='sendMsg' i]", "[class*='save' i]"]:
+        btn = chat.locator(sel)
+        if btn.count():
+            btn.last.click()
+            return
     page.keyboard.press("Enter")
 
 
@@ -226,8 +241,7 @@ def _answer(page: Page, chat: Locator, q: Question, d: ApplyDefaults) -> str:
             labels = ", ".join(l for _, l in opts if l)
             raise ApplyAborted(f"Notice-period options didn't match configured keywords: [{labels}]")
         if text_box:
-            text_box.click()
-            text_box.fill(d.notice_period_text)
+            _type_into(text_box, d.notice_period_text)
             _click_save(page, chat)
             return d.notice_period_text
         raise BlockedPage("Notice-period question with no recognisable input")
@@ -240,8 +254,7 @@ def _answer(page: Page, chat: Locator, q: Question, d: ApplyDefaults) -> str:
     if not text_box:
         raise BlockedPage("CTC question with no recognisable input")
     value = ctc_answer(q.text, lpa, d.ctc_unit_when_unspecified)
-    text_box.click()
-    text_box.fill(value)
+    _type_into(text_box, value)
     _click_save(page, chat)
     return value
 

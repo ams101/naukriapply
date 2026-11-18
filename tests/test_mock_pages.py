@@ -227,3 +227,51 @@ def test_real_apply_on_company_site_is_flagged(page):
     page.set_content((FIX / "job_shaadi.html").read_text(encoding="utf-8"))
     with pytest.raises(ApplyAborted, match="external"):
         run_apply(page, DEFAULTS, timeout_s=5)
+
+
+# ---- Real Naukri recruiter questionnaire markup (Bajaj Finserv job, Nov 2026) ----
+QFIX = FIX / "job_with_questionnaire.html"
+
+
+def real_questionnaire(page, questions):
+    page.set_content(QFIX.read_text(encoding="utf-8"))
+    page.evaluate("q => { window.QUESTIONS = q; }", questions)
+
+
+def test_real_questionnaire_relocation_question_is_flagged(page):
+    real_questionnaire(page, [
+        {"text": "Are you currently living in or ready to relocate to Pune ?"},
+        {"text": "How many years of experience do you have in Digital Lending?"},
+    ])
+    with pytest.raises(ApplyAborted, match="free-text question: 'Are you currently living in or ready to relocate"):
+        run_apply(page, DEFAULTS, timeout_s=20)
+    assert page.evaluate("window.answers") == []
+    assert page.locator("#already-applied").count() == 0
+
+
+def test_real_questionnaire_basic_fields_submit(page):
+    real_questionnaire(page, [
+        {"text": "What is your current CTC (in lakhs)?"},
+        {"text": "What is your expected CTC?"},
+        {"text": "What is your notice period?", "options": ["1 Month", "15 Days or less", "2 Months"]},
+    ])
+    res = run_apply(page, DEFAULTS, timeout_s=30)
+    assert page.evaluate("window.answers") == ["27", "3600000", "15 Days or less"]
+    assert res.detail.startswith("Answered:")
+
+
+def test_real_questionnaire_notice_as_text(page):
+    real_questionnaire(page, [{"text": "What is your notice period?"}])
+    run_apply(page, DEFAULTS, timeout_s=20)
+    assert page.evaluate("window.answers") == ["Immediately available / currently serving notice"]
+
+
+def test_real_questionnaire_later_free_text_question_stops_before_submit(page):
+    real_questionnaire(page, [
+        {"text": "What is your current CTC?"},
+        {"text": "How many years of experience do you have in FLDG?"},
+    ])
+    with pytest.raises(ApplyAborted, match="FLDG"):
+        run_apply(page, DEFAULTS, timeout_s=20)
+    assert page.evaluate("window.answers") == ["2700000"]
+    assert page.locator("#already-applied").count() == 0
