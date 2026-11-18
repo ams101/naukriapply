@@ -103,25 +103,23 @@ def _page_n_url(base_url: str, n: int) -> str:
 
 
 def _go_next(page: Page, base_url: str, next_n: int) -> bool:
-    """Click 'Next' if present and enabled; otherwise navigate to the page-N URL."""
-    before = page.url
+    """Go to results page N, keeping the search filters.
+
+    Naukri's own "Next" link (href="/product-manager-jobs-3") drops the query string, which
+    would lose jobAge=7, so it's only used to detect the last page (aria-disabled="true");
+    navigation always goes to the page-N URL built from the configured search URL.
+    """
     nxt = page.get_by_role("link", name=re.compile(r"^\s*next\s*$", re.I))
     if nxt.count() == 0:
         nxt = page.get_by_role("button", name=re.compile(r"^\s*next\s*$", re.I))
     if nxt.count():
         el = nxt.first
-        disabled = (el.get_attribute("disabled") is not None) or ("disabled" in (el.get_attribute("class") or ""))
-        if disabled:
+        if (
+            (el.get_attribute("aria-disabled") or "").lower() == "true"
+            or el.get_attribute("disabled") is not None
+            or "disabled" in (el.get_attribute("class") or "").lower()
+        ):
             return False
-        try:
-            el.scroll_into_view_if_needed()
-            el.click()
-            page.wait_for_load_state("domcontentloaded")
-            page.wait_for_timeout(2500)
-            if page.url != before:
-                return True
-        except Exception:
-            pass
     page.goto(_page_n_url(base_url, next_n), wait_until="domcontentloaded")
     page.wait_for_timeout(2500)
     return True

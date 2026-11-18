@@ -166,3 +166,31 @@ def test_company_site(page):
     page.set_content("<html><body><h1>PM</h1><button>Apply on company site</button></body></html>")
     with pytest.raises(ApplyAborted, match="external"):
         run_apply(page, DEFAULTS, timeout_s=5)
+
+
+# ---- Real Naukri page (results page 2, saved Nov 2026; trimmed to job cards + Next link) ----
+from pathlib import Path
+
+REAL_SEARCH = Path(__file__).parent / "fixtures" / "search_real.html"
+
+
+def test_scrape_real_search_page(page):
+    page.set_content(REAL_SEARCH.read_text(encoding="utf-8"))
+    jobs = scrape_results_page(page)
+    assert len(jobs) == 20
+    assert all(j.job_id and j.title and j.company and j.location and j.posted for j in jobs)
+    by_id = {j.job_id: j for j in jobs}
+    assert by_id["191026914203"].company == "TechBlocks"
+    assert by_id["171126505628"].company == "Shaadi.com"
+    assert by_id["171126030124"].location == "Ahmedabad"
+    assert by_id["191026914203"].url == (
+        "https://www.naukri.com/job-listings-product-manager-techblocks-consulting-pvt-ltd-hyderabad-6-to-11-years-191026914203"
+    )
+
+
+def test_real_next_link_detection(page):
+    import re
+    page.set_content(REAL_SEARCH.read_text(encoding="utf-8"))
+    nxt = page.get_by_role("link", name=re.compile(r"^\s*next\s*$", re.I))
+    assert nxt.count() == 1
+    assert nxt.first.get_attribute("aria-disabled") == "false"
