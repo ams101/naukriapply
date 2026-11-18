@@ -113,10 +113,14 @@ def _success_visible(page: Page) -> bool:
             return True
     except Exception:
         pass
-    try:
-        return page.get_by_role("button", name=ALREADY_APPLIED_RE).first.is_visible(timeout=300)
-    except Exception:
-        return False
+    # On a real Naukri job page the "Applied" state is <span id="already-applied">, not a button.
+    for loc in (page.locator("#already-applied"), page.get_by_role("button", name=ALREADY_APPLIED_RE)):
+        try:
+            if loc.count() and loc.first.is_visible(timeout=300):
+                return True
+        except Exception:
+            continue
+    return False
 
 
 def _chat_container(page: Page) -> Locator | None:
@@ -213,7 +217,10 @@ def _answer(page: Page, chat: Locator, q: Question, d: ApplyDefaults) -> str:
         if opts:
             for loc, label in opts:
                 if any(k.lower() in label.lower() for k in d.notice_period_option_keywords):
-                    loc.click()
+                    try:
+                        loc.click(timeout=3000)
+                    except Exception:  # styled radios often hide the <input>; force the click
+                        loc.click(force=True, timeout=3000)
                     _click_save(page, chat)
                     return label
             labels = ", ".join(l for _, l in opts if l)

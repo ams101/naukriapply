@@ -194,3 +194,36 @@ def test_real_next_link_detection(page):
     nxt = page.get_by_role("link", name=re.compile(r"^\s*next\s*$", re.I))
     assert nxt.count() == 1
     assert nxt.first.get_attribute("aria-disabled") == "false"
+
+
+# ---- Real Naukri job pages (saved Nov 2026; trimmed to header + JD section) ----
+from naukri_autoapply.apply_flow import _success_visible, precheck
+from naukri_autoapply.search import _JD_JS, Job, open_detail
+
+FIX = Path(__file__).parent / "fixtures"
+
+
+@pytest.mark.parametrize("name,state", [
+    ("techblocks", "apply"), ("shaadi", "company_site"), ("infoedge", "already_applied"),
+])
+def test_real_job_page_state(page, name, state):
+    page.set_content((FIX / f"job_{name}.html").read_text(encoding="utf-8"))
+    assert precheck(page) == state
+    assert len(page.evaluate(_JD_JS)) > 1500
+    # "Applied" span must also count as success after clicking Apply.
+    assert _success_visible(page) == (state == "already_applied")
+
+
+def test_real_job_page_metadata_cleanup(page, tmp_path):
+    f = tmp_path / "job.html"
+    f.write_text((FIX / "job_techblocks.html").read_text(encoding="utf-8"), encoding="utf-8")
+    job = Job(job_id="191026914203", title="", company="", location="", posted="", url=f.as_uri())
+    jd = open_detail(page, job)
+    assert job.company == "TechBlocks" and job.location == "Hyderabad"
+    assert "product" in jd.lower()
+
+
+def test_real_apply_on_company_site_is_flagged(page):
+    page.set_content((FIX / "job_shaadi.html").read_text(encoding="utf-8"))
+    with pytest.raises(ApplyAborted, match="external"):
+        run_apply(page, DEFAULTS, timeout_s=5)

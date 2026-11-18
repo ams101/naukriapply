@@ -182,8 +182,11 @@ def open_detail(page: Page, job: Job) -> str:
     try:
         meta = page.evaluate(_DETAIL_META_JS)
         job.title = job.title or meta.get("title", "")
-        job.company = job.company or meta.get("company", "")
-        job.location = job.location or meta.get("location", "")
+        # Job-page header links read "TechBlocks Careers" / "Jobs in Hyderabad".
+        company = re.sub(r"\s+careers$", "", meta.get("company", ""), flags=re.I)
+        location = re.sub(r"^jobs in\s+", "", meta.get("location", ""), flags=re.I)
+        job.company = job.company or company
+        job.location = job.location or location
     except Exception:
         pass
     jd = page.evaluate(_JD_JS)
