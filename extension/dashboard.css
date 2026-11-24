@@ -50,3 +50,4 @@ details { margin: 8px 0; }
 summary { cursor: pointer; color: var(--muted); }
 #setup { border-color: var(--warn); }
 #setup li { margin: 4px 0; }
+[hidden] { display: none !important; }

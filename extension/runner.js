@@ -1,6 +1,6 @@
 // One run: open Naukri in its own window, walk the search results, decide per job, log to storage.
 import { applyFlow, pageState, readJob, scrapeResults } from './naukri.js';
-import { AuthError, scoreJob } from './scorer.js';
+import { AuthError, QuotaError, scoreJob } from './scorer.js';
 import { appendLog, dedupState, loadLog, localDate, localTime } from './store.js';
 
 const DRY = {
@@ -155,7 +155,7 @@ export class Runner {
       hit = isBlocklisted(job.company, s.blocklist);
       if (hit) return this.record(job, 'skipped_blocklist', `Company matches blocklist entry '${hit}'`);
 
-      const r = await scoreJob({ apiKey: s.apiKey, model: s.model, effort: s.effort, cvBase64: this.cv.base64, sleep }, job, info.jd);
+      const r = await scoreJob(s, this.cv.base64, sleep, job, info.jd);
       score = r.score;
       if (score < s.reviewThreshold) return this.record(job, 'skipped_low_score', r.reason, score);
       if (score < s.applyThreshold) return this.record(job, 'flagged_review', `Score in review band. ${r.reason}`, score);
@@ -198,7 +198,7 @@ export class Runner {
       return this.record(job, 'error_skipped', `${res.detail} | page: ${job.url}`, score);
     } catch (e) {
       if (e instanceof StopRun) throw e;
-      if (e instanceof AuthError) throw new StopRun(e.message);
+      if (e instanceof AuthError || e instanceof QuotaError) throw new StopRun(e.message);
       let where = job.url;
       try { const st = await this.exec(pageState); where = `${st.url} | title: ${st.title}`; } catch { /* tab gone */ }
       return this.record(job, 'error_skipped', `${e.name}: ${e.message} | page: ${where}`, score);

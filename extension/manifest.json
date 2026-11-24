@@ -2,10 +2,10 @@
   "manifest_version": 3,
   "name": "Naukri Auto-Apply (PM)",
   "version": "1.0.0",
-  "description": "Scores new Naukri Product Manager jobs against your CV with Claude and applies to strong matches.",
+  "description": "Scores new Naukri Product Manager jobs against your CV with Gemini or Claude and applies to strong matches.",
   "action": { "default_title": "Open Naukri Auto-Apply" },
   "background": { "service_worker": "background.js" },
   "permissions": ["storage", "unlimitedStorage", "tabs", "scripting"],
-  "host_permissions": ["https://www.naukri.com/*", "https://api.anthropic.com/*"],
+  "host_permissions": ["https://www.naukri.com/*", "https://api.anthropic.com/*", "https://generativelanguage.googleapis.com/*"],
   "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
 }

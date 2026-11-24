@@ -53,7 +53,19 @@
     <form id="settings">
       <fieldset>
         <legend>Essentials</legend>
-        <label>Anthropic API key <input name="apiKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
+        <label>Scoring provider
+          <select name="provider" id="provider">
+            <option value="gemini">Google Gemini (AI Studio key)</option>
+            <option value="anthropic">Anthropic Claude</option>
+          </select>
+        </label>
+        <div data-provider="gemini">
+          <label>Gemini API key (from aistudio.google.com → API keys) <input name="geminiApiKey" type="password" autocomplete="off"></label>
+          <p class="muted">Free tier: Google may use what's sent (your CV and job descriptions) to improve its products, and daily limits can stop a long run early. The paid tier doesn't use your data.</p>
+        </div>
+        <div data-provider="anthropic">
+          <label>Anthropic API key <input name="apiKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
+        </div>
         <label>Your CV (PDF, used only for scoring; Naukri sends its own copy when applying)
           <input id="cv" type="file" accept="application/pdf">
         </label>
@@ -90,8 +102,12 @@
         <label>Search URL <input name="searchUrl"></label>
         <div class="grid">
           <label>Max result pages <input name="maxPages" type="number"></label>
-          <label>Model <input name="model"></label>
-          <label>Effort
+          <label data-provider="gemini">Gemini model <input name="geminiModel"></label>
+          <label data-provider="gemini">Gemini thinking level
+            <select name="geminiThinking"><option>low</option><option>medium</option><option>high</option><option>xhigh</option></select>
+          </label>
+          <label data-provider="anthropic">Claude model <input name="model"></label>
+          <label data-provider="anthropic">Claude effort
             <select name="effort"><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option></select>
           </label>
         </div>

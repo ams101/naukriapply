@@ -1,7 +1,7 @@
 # Naukri Auto-Apply (Product Manager roles)
 
 A Chrome extension that searches Naukri for Product Manager jobs posted in the last 7 days. It
-scores each new job against your CV with Claude, applies to strong matches, and flags unclear ones
+scores each new job against your CV with Google Gemini (or Anthropic Claude), applies to strong matches, and flags unclear ones
 for you to review. Nothing to install besides Chrome; it uses the Naukri login you already have.
 
 ## One-time setup
@@ -15,7 +15,10 @@ for you to review. Nothing to install besides Chrome; it uses the Naukri login y
    - Click the puzzle-piece icon in the toolbar and pin **Naukri Auto-Apply**.
 3. **Open it.** Click its toolbar icon. The dashboard opens in a tab.
 4. **Settings → Essentials.**
-   - Paste your Anthropic API key (from console.anthropic.com) and click **Save settings**.
+   - **Scoring provider:** Google Gemini is the default. Paste your Gemini API key from
+     aistudio.google.com → API keys. Google requires keys to be restricted to the Gemini API,
+     which AI Studio keys normally are. Or pick Anthropic Claude and paste an Anthropic key.
+     Then click **Save settings**.
    - Upload your CV as a PDF. It's used **only to score jobs**: Naukri sends the CV on your
      Naukri profile when you apply, so keep the two in sync.
 5. **Check the other settings** (CTC, notice period, relocate, years of experience, blocklist,
@@ -39,7 +42,7 @@ dashboard says it's finished. **Download CSV** exports the full log as `applied_
 1. **Blocklist.** If the company name matches the blocklist, the job is logged as
    `skipped_blocklist` without scoring. The match ignores case and punctuation and works on
    substrings.
-2. **Score** (0–100, plus a short reason). Claude compares your CV with the job description.
+2. **Score** (0–100, plus a short reason). Gemini (`gemini-4-hydrogen` by default) or Claude compares your CV with the job description.
    - below 70: `skipped_low_score`
    - 70–84: `flagged_review`
    - 85 and above: try to apply
@@ -61,8 +64,13 @@ when there are no new jobs left in the results.
 
 ## Things to know
 
-- **Cost.** Each job scored is one Claude call. A rough guide is a few US cents per job; your CV is
-  cached between calls. The first run can cover hundreds or thousands of listings from the last
+- **Gemini free tier.** No cost, but Google may use what's sent (your CV and the job
+  descriptions) to improve its products, and per-minute and per-day limits apply. When the
+  per-minute limit is hit, the run waits and retries. When the daily limit is hit, the run stops
+  and leaves the remaining jobs for next time (the limit resets at midnight Pacific time). The paid
+  tier doesn't use your data.
+- **Cost (paid tiers).** Each job scored is one API call, roughly a cent or less on Gemini 4
+  Hydrogen and a few cents on Claude. The first run can cover hundreds or thousands of listings from the last
   7 days, so for the first dry run consider setting **Advanced → Max result pages** to 5 (about
   100 jobs) to see how it does. Later runs only score jobs they haven't seen.
 - **Dedup.** A job logged as `applied`, `flagged_review`, `skipped_*` or `error_skipped` is never
@@ -73,7 +81,7 @@ when there are no new jobs left in the results.
   so a dry run never clicks it. `would_apply` means "score 85+ and an Apply button is there".
 - **Years of experience = 5 for any skill asked**, including skills not on your CV.
 - **Your data stays in this Chrome.** The log, settings, API key and CV are kept in the
-  extension's local storage. Only the CV and job description are sent to the Claude API for scoring.
+  extension's local storage. Only the CV and job description are sent to the scoring API.
 - **Selectors** were checked against real saved Naukri pages (search results, Apply / company site /
   Applied job pages, and the recruiter questionnaire). Naukri can change its pages. If you start
   seeing `error_skipped` rows, send the rows plus a saved copy of the page and the selectors in
@@ -83,9 +91,9 @@ when there are no new jobs left in the results.
 
 | Path | What |
 |---|---|
-| `extension/` | The Chrome extension: `naukri.js` (code that runs on Naukri pages), `runner.js` (run logic), `scorer.js` (Claude API), `store.js` (settings and log), `dashboard.*` (UI) |
+| `extension/` | The Chrome extension: `naukri.js` (code that runs on Naukri pages), `runner.js` (run logic), `scorer.js` (Gemini and Claude APIs), `store.js` (settings and log), `dashboard.*` (UI) |
 | `naukri_autoapply/`, `main.py`, `config.yaml` | The earlier Python + Playwright version, same behaviour. Not needed for the extension. |
-| `tests/` | Tests for both versions. They use trimmed real Naukri pages in `tests/fixtures/`, and the extension tests load it into Chrome end to end with Naukri and the Claude API simulated. |
+| `tests/` | Tests for both versions. They use trimmed real Naukri pages in `tests/fixtures/`, and the extension tests load it into Chrome end to end with Naukri and the scoring APIs simulated. |
 
 Run the tests (needs Python and Playwright):
 

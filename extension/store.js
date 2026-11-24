@@ -1,7 +1,11 @@
 // Settings, CV and the job log, kept in chrome.storage.local (stays on this computer).
 
 export const DEFAULT_SETTINGS = {
-  apiKey: '',
+  provider: 'gemini',           // 'gemini' (Google AI Studio key) or 'anthropic'
+  geminiApiKey: '',
+  geminiModel: 'gemini-4-hydrogen',
+  geminiThinking: 'medium',     // low | medium | high | xhigh
+  apiKey: '',                   // Anthropic key
   searchUrl: 'https://www.naukri.com/product-manager-jobs?k=product%20manager&jobAge=7',
   maxPages: 100,
   currentCtcLpa: 27,
@@ -12,7 +16,7 @@ export const DEFAULT_SETTINGS = {
   relocateAnswer: 'Yes',
   yearsExperience: 5,
   blocklist: ['Shaadi.com', 'People Group'],
-  model: 'claude-opus-5-5',
+  model: 'claude-opus-5-5',     // Anthropic model
   effort: 'medium',
   applyThreshold: 85,
   reviewThreshold: 70,

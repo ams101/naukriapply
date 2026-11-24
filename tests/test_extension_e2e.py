@@ -60,12 +60,13 @@ def job_page(job_id: str) -> str:
 class Harness:
     def __init__(self, pw):
         self.api_calls = []
-        self.apply_clicks = []
+        self.gemini_errors = []   # queued error responses to return before succeeding
         self.ctx = pw.chromium.launch_persistent_context(
             tempfile.mkdtemp(), headless=True, executable_path=CHROME,
             args=[f"--disable-extensions-except={EXT}", f"--load-extension={EXT}", "--headless=new"])
         self.ctx.route(re.compile(r"https://www\.naukri\.com/.*"), self.naukri)
         self.ctx.route("https://api.anthropic.com/v1/messages", self.claude)
+        self.ctx.route(re.compile(r"https://generativelanguage\.googleapis\.com/.*"), self.gemini)
         sw = self.ctx.service_workers[0] if self.ctx.service_workers else self.ctx.wait_for_event("serviceworker")
         self.ext_id = sw.url.split("/")[2]
         self.dash = self.ctx.new_page()
@@ -96,8 +97,25 @@ class Harness:
                         {"type": "text", "text": json.dumps({"score": score, "reason": f"stub score {score}"})}],
             "stop_reason": "end_turn", "usage": {"input_tokens": 10, "output_tokens": 5}}))
 
+    def gemini(self, route):
+        req = route.request
+        body = json.loads(req.post_data)
+        self.api_calls.append({"url": req.url, "headers": req.headers, "body": body})
+        if self.gemini_errors:
+            status, err = self.gemini_errors.pop(0)
+            return route.fulfill(status=status, content_type="application/json", body=json.dumps({"error": err}))
+        text = body["contents"][0]["parts"][1]["text"]
+        company = re.search(r"<company>(.*?)</company>", text).group(1)
+        score = SCORES_BY_COMPANY[company]
+        route.fulfill(status=200, content_type="application/json", body=json.dumps({
+            "candidates": [{"content": {"role": "model", "parts": [
+                {"text": json.dumps({"score": score, "reason": f"stub score {score}"})}]},
+                "finishReason": "STOP"}],
+            "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 5}}))
+
     def configure(self, **overrides):
-        settings = {"apiKey": "sk-ant-test", "secondsBetweenApplies": 3, **overrides}
+        settings = {"provider": "gemini", "geminiApiKey": "AQ.test-key", "apiKey": "sk-ant-test",
+                    "secondsBetweenApplies": 3, **overrides}
         self.dash.evaluate("""s => chrome.storage.local.set({settings: s,
             cv: {name: 'resume.pdf', size: 10, base64: 'JVBERi0xLjQK'}})""", settings)
         self.dash.reload()
@@ -158,17 +176,16 @@ def test_dry_run_then_live_run(h):
     }
     assert len(h.api_calls) == 6                 # blocklisted company is never scored
 
-    # What was sent to Claude: model, PDF CV (cached), structured output, fallbacks, headers.
+    # What was sent to Gemini: model, key header, PDF CV, JSON schema output, thinking level.
     call = h.api_calls[0]
-    assert call["headers"]["x-api-key"] == "sk-ant-test"
-    assert call["headers"]["anthropic-version"] == "2026-10-21"
-    assert call["headers"]["anthropic-beta"] == "server-side-fallback-2026-07-01"
+    assert call["url"] == "https://generativelanguage.googleapis.com/v1beta/models/gemini-4-hydrogen:generateContent"
+    assert call["headers"]["x-goog-api-key"] == "AQ.test-key"
     b = call["body"]
-    assert b["model"] == "claude-opus-5-5" and b["fallbacks"] == "default"
-    doc = b["messages"][0]["content"][0]
-    assert doc["type"] == "document" and doc["source"]["media_type"] == "application/pdf"
-    assert doc["cache_control"] == {"type": "ephemeral"}
-    assert b["output_config"]["format"]["type"] == "json_schema"
+    assert b["contents"][0]["parts"][0]["inlineData"]["mimeType"] == "application/pdf"
+    assert b["generationConfig"]["responseMimeType"] == "application/json"
+    assert b["generationConfig"]["responseJsonSchema"]["required"] == ["score", "reason"]
+    assert b["generationConfig"]["thinkingConfig"] == {"thinkingLevel": "medium"}
+    assert "resume" in b["systemInstruction"]["parts"][0]["text"]
 
     # Live run: dry-run rows don't block it.
     status = h.run("live")
@@ -221,6 +238,7 @@ def test_missing_api_key_blocks_start(h):
     h.dash.evaluate("chrome.storage.local.clear()")
     h.dash.reload()
     assert h.dash.locator("#setup").is_visible()
+    assert "Gemini API key" in h.dash.locator("#setup").inner_text()
     assert h.dash.locator("#live").is_disabled()
 
 
@@ -233,3 +251,48 @@ def test_login_wall_stops_run(h):
     status = h.run("dry")
     assert "log into naukri.com" in status.lower(), status
     assert h.log() == []
+
+
+def test_claude_provider(h):
+    h.configure(provider="anthropic", maxPages=1)
+    h.run("dry")
+    assert h.actions(h.log())["191026914203"] == "would_apply"
+    call = h.api_calls[0]
+    assert call["headers"]["x-api-key"] == "sk-ant-test"
+    assert call["headers"]["anthropic-version"] == "2026-10-21"
+    assert call["headers"]["anthropic-beta"] == "server-side-fallback-2026-07-01"
+    b = call["body"]
+    assert b["model"] == "claude-opus-5-5" and b["fallbacks"] == "default"
+    doc = b["messages"][0]["content"][0]
+    assert doc["type"] == "document" and doc["source"]["media_type"] == "application/pdf"
+    assert doc["cache_control"] == {"type": "ephemeral"}
+    assert b["output_config"]["format"]["type"] == "json_schema"
+
+
+def test_gemini_per_minute_limit_waits_and_retries(h):
+    h.configure()
+    h.gemini_errors = [(429, {"code": 429, "status": "RESOURCE_EXHAUSTED",
+                              "message": "Quota exceeded for requests per minute",
+                              "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "1s"}]})]
+    h.run("dry")
+    acts = h.actions(h.log())
+    assert len(acts) == 7 and "would_error_skip" not in acts.values()
+
+
+def test_gemini_daily_quota_stops_run_without_logging_errors(h):
+    h.configure()
+    h.gemini_errors = [(429, {"code": 429, "status": "RESOURCE_EXHAUSTED",
+                              "message": "Quota exceeded for metric: generate_content_free_tier_requests, limit: 0",
+                              "details": [{"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                                           "violations": [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]}]})]
+    status = h.run("dry")
+    assert "daily quota" in status.lower(), status
+    # Only the blocklisted job (no API call) was logged; the quota-hit job stays unseen for next time.
+    assert all(r["action"] == "would_skip_blocklist" for r in h.log())
+
+
+def test_gemini_bad_key_stops_run(h):
+    h.configure()
+    h.gemini_errors = [(400, {"code": 400, "status": "INVALID_ARGUMENT", "message": "API key not valid. Please pass a valid API key."})]
+    status = h.run("dry")
+    assert "rejected" in status and "Settings" in status, status

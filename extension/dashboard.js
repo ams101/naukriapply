@@ -49,13 +49,21 @@ $('cv').addEventListener('change', async e => {
   refreshSetup();
 });
 
+function showProviderFields() {
+  const p = $('provider').value;
+  for (const el of document.querySelectorAll('[data-provider]')) el.hidden = el.dataset.provider !== p;
+}
+$('provider').addEventListener('change', showProviderFields);
+
 // ---- setup checklist ----
 async function refreshSetup() {
   const s = await loadSettings();
   const cv = await loadCv();
   $('cv-status').textContent = cv ? `Using ${cv.name} (${Math.round(cv.size / 1024)} KB). Upload again to replace.` : 'No CV uploaded yet.';
   const todo = [];
-  if (!s.apiKey) todo.push('Add your Anthropic API key in Settings below, then Save.');
+  if (s.provider === 'anthropic' ? !s.apiKey : !s.geminiApiKey) {
+    todo.push(`Add your ${s.provider === 'anthropic' ? 'Anthropic' : 'Gemini'} API key in Settings below, then Save.`);
+  }
   if (!cv) todo.push('Upload your CV (PDF) in Settings below.');
   $('setup-list').innerHTML = '';
   for (const t of todo) { const li = document.createElement('li'); li.textContent = t; $('setup-list').append(li); }
@@ -162,6 +170,7 @@ window.addEventListener('beforeunload', e => { if (runner) { e.preventDefault();
 
 (async () => {
   fillForm(await loadSettings());
+  showProviderFields();
   await refreshSetup();
   renderLog();
 })();
